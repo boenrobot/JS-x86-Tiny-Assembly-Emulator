@@ -1,0 +1,228 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"> 
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />
+        <title>Assembly sumulator</title>
+    </head>
+    <body>
+        <form id="emulator" action="" method="post">
+            <textarea id="code" rows="20" cols="80" name="code">MOV eax, 0xA0
+MOV ebx, 20
+MOV x, 3
+ADD eax, ebx
+JMP END
+SKIP: INC ebx
+JMP SKIP
+END: MOV ebx, 5</textarea>
+            <input type="submit" value="Execute" />
+        </form>
+        <div>
+            <h1>Regs</h1>
+            <table>
+                <tr>
+                    <th>eax</th>
+                    <td id="reg-eax">0</td>
+                </tr>
+                <tr>
+                    <th>ebx</th>
+                    <td id="reg-ebx">0</td>
+                </tr>
+                <tr>
+                    <th>ecx</th>
+                    <td id="reg-ecx">0</td>
+                </tr>
+                <tr>
+                    <th>edx</th>
+                    <td id="reg-edx">0</td>
+                </tr>
+                <tr>
+                    <th>pc</th>
+                    <td id="reg-pc">0</td>
+                </tr>
+            </table>
+            <h1>Memory</h1>
+            <div id="mem">
+                
+            </div>
+        </div>
+        <script type="text/javascript">
+            //<!CDATA[[
+            var regs = {
+              'eax': 0,
+              'ebx': 0,
+              'ecx': 0,
+              'edx': 0,
+              'pc': 0
+            };
+            var mem = {};
+            var labels = {};
+            var cmds = {
+                'MOV': function(arg1, arg2) {
+                    if (typeof regs[arg1] === 'number') {
+                        if (typeof regs[arg2] === 'number') {
+                            regs[arg1] = regs[arg2];
+                        } else if (typeof mem[arg2] === 'number') {
+                            regs[arg1] = mem[arg2];
+                        } else {
+                            var newConst = parseInt(arg2);
+                            if (isNaN(newConst)) {
+                                alert('ERROR! Invalid second argument of MOV');
+                            } else {
+                                regs[arg1] = newConst;
+                            }
+                        }
+                    } else {
+                        if (typeof regs[arg2] === 'number') {
+                            mem[arg1] = regs[arg2];
+                        } else if (typeof mem[arg2] === 'number') {
+                            alert('ERROR! Unable to work on two memory points at one command.');
+                        } else {
+                            var newConst = parseInt(arg2);
+                            if (isNaN(newConst)) {
+                                alert('ERROR! Invalid constant argument of MOV');
+                            } else {
+                                mem[arg1] = newConst;
+                            }
+                        }
+                    }
+                },
+                'ADD': function(arg1, arg2) {
+                    if (typeof regs[arg1] === 'number') {
+                        if (typeof regs[arg2] === 'number') {
+                            regs[arg1] += regs[arg2];
+                        } else if (typeof mem[arg2] === 'number') {
+                            regs[arg1] += mem[arg2];
+                        } else {
+                            var newConst = parseInt(arg2);
+                            if (isNaN(newConst)) {
+                                alert('ERROR! Invalid second argument of ADD');
+                            } else {
+                                regs[arg1] += newConst;
+                            }
+                        }
+                    } else if (typeof mem[arg1] === 'number') {
+                        if (typeof regs[arg2] === 'number') {
+                            mem[arg1] += regs[arg2];
+                        } else if (typeof mem[arg2] === 'number') {
+                            alert('ERROR! Unable to work on two memory points at one command.');
+                        } else {
+                            var newConst = parseInt(arg2);
+                            if (isNaN(newConst)) {
+                                alert('ERROR! Invalid constant argument of ADD');
+                            } else {
+                                mem[arg1] + newConst;
+                            }
+                        }
+                    } else {
+                        alert('ERROR! Unable to write to a constant or undefined variable.');
+                    }
+                },
+                'INC': function(arg1) {
+                    if (typeof regs[arg1] === 'number') {
+                        regs[arg1]++;
+                    } else if (typeof mem[arg1] === 'number') {
+                        mem[arg1]++;
+                    } else {
+                        alert('ERROR! Invalid registry or variable specified.')
+                    }
+                },
+                'DEC': function(arg1) {
+                    if (typeof regs[arg1] === 'number') {
+                        regs[arg1]--;
+                    } else if (typeof mem[arg1] === 'number') {
+                        mem[arg1]--;
+                    } else {
+                        alert('ERROR! Invalid registry or variable specified.')
+                    }
+                },
+                'JMP': function(arg1) {
+                    if (typeof labels[arg1] === 'number') {
+                        regs['pc'] = labels[arg1] - 1;
+                    } else {
+                        alert('ERROR! Must specify label.');
+                    }
+                }
+            };
+            
+            function printDebugInfo() {
+                for (reg in regs) {
+                    document.getElementById('reg-'+reg).innerHTML = regs[reg];
+                }
+                var newMemTable = '<table>';
+                for (variable in mem) {
+                    newMemTable += '<tr><th>'+variable+'</th><td>'+mem[variable]+'</td></tr>';
+                }
+                newMemTable += '</table>';
+                document.getElementById('mem').innerHTML = newMemTable;
+                
+            }
+            var emulator = document.getElementById('emulator');
+            emulator.onsubmit = function() {
+                //Parse the code
+                var program = [];
+                var code = document.getElementById('code').value;
+                var lines = code.split("\n");
+                for (var i=0, l=lines.length; i<l; ++i) {
+                    //Strip comments and trim whitespace
+                    var rem = lines[i].match(/[^\;]+/)[0].replace(
+                        /^\s+|\s+$/g, ''
+                    );
+                    
+                    //Ignore empty lines
+                    if ('' === rem) {
+                        continue;
+                    }
+                    //Get the label (if any)
+                    var label = rem.match(/^[^\:]+/)[0];
+                    if (label === rem) {
+                        label = null;
+                    } else {
+                        rem = rem.substr(1 + label.length);
+                        label = label.replace(
+                            /^\s+|\s+$/g, ''
+                        );
+                        if (typeof labels[label] === 'number') {
+                            alert('Parsing error: Duplicate label.');
+                            return false;
+                        }
+                        labels[label] = i;
+                    }
+                    rem = rem.replace(/^\s+|\s+$/g, '');
+                    
+                    //Get the command
+                    var cmd = rem.match(/^\S+/)[0], arg1 = null, arg2 = null;
+                    if (cmd !== rem) {
+                        rem = rem.substr(1 + cmd.length);
+                        
+                        //Get the first argument
+                        var arg1 =  rem.match(/^[^\,]+/)[0];
+                        
+                        if (arg1 !== rem) {
+                            //Get the second argument
+                            arg2 = rem.substr(1 + arg1.length).replace(
+                                /^\s+|\s+$/g, ''
+                            );
+                        }
+                        arg1.replace(/^\s+|\s+$/g, '');
+                    }
+                    cmd = cmd.replace(/^\s+|\s+$/g, '');
+                    
+                    program[program.length] = [cmd, arg1, arg2];
+                }
+                
+                //Parsed. Now let's executed it.
+                do {
+                    var execLine = program[regs['pc']];
+                    cmds[execLine[0]](execLine[1], execLine[2]);
+                    printDebugInfo();
+                    regs['pc']++;
+                } while (program.length > regs['pc']);
+                regs['pc'] = 0;
+                labels = {};
+                
+                return false;
+            }
+            //]]>
+        </script>
+    </body>
+</html>
